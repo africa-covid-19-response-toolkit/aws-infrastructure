@@ -2,19 +2,8 @@ provider "aws" {
   region = "us-east-1"
 }
 
-
 variable "project" {
   default = "default"
-}
-variable "resource_prefix" {
-  default = ""
-}
-
-locals {
-  env          = terraform.workspace
-  asg_name     = "${var.resource_prefix}asg-${local.env}"
-  cluster_name = "${local.asg_name}-cluster"
-  azs          = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
 variable "subnet_initial" {
@@ -23,6 +12,10 @@ variable "subnet_initial" {
 variable "machine_type" {
   default = "t2.micro"
 }
+
+variable "domain" {}
+
+
 
 variable "min_count" {
   default = 0
@@ -34,6 +27,13 @@ variable "max_count" {
 
 variable "desired_count" {
   default = 0
+}
+
+locals {
+  env          = terraform.workspace
+  asg_name     = "${var.project}-asg-${local.env}"
+  cluster_name = "${local.asg_name}-cluster"
+  azs          = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
 module "vpc" {
@@ -63,10 +63,19 @@ module "vpc" {
   }
 }
 
+resource "aws_iam_instance_profile" "profile" {
+  role = aws_iam_role.instanace.name
+
+}
+
 resource "aws_launch_template" "lunch_template" {
   name_prefix   = "${local.env}-template-"
-  image_id      = "ami-04ac550b78324f651"
+  image_id      = "ami-00f69adbdc780866c"
   instance_type = var.machine_type
+
+  iam_instance_profile {
+    arn = aws_iam_instance_profile.profile.arn
+  }
 
   user_data = base64encode(templatefile("userdata.sh", {
     cluster_name = local.cluster_name
@@ -81,6 +90,7 @@ resource "aws_autoscaling_group" "asg" {
   min_size            = var.min_count
   vpc_zone_identifier = module.vpc.public_subnets[*]
 
+
   launch_template {
     id      = aws_launch_template.lunch_template.id
     version = "$Latest"
@@ -88,7 +98,7 @@ resource "aws_autoscaling_group" "asg" {
 }
 
 resource "aws_ecs_capacity_provider" "cluster_cp" {
-  name = "${var.resource_prefix}cp-asg-${local.asg_name}"
+  name = "${local.asg_name}-cp"
 
   auto_scaling_group_provider {
     auto_scaling_group_arn = aws_autoscaling_group.asg.arn
@@ -110,23 +120,66 @@ resource "aws_ecs_cluster" "cluster" {
 
 }
 
+data "aws_route53_zone" "zone" {
+  name = var.domain
+}
+
+resource "aws_route53_record" "hosted_zone" {
+  allow_overwrite = true
+  name            = "*.amanu-n.com"
+  zone_id         = "${data.aws_route53_zone.zone.zone_id}"
+  type            = "A"
+
+  alias {
+    name    = aws_lb.alb.dns_name
+    zone_id = aws_lb.alb.zone_id
+
+    evaluate_target_health = true
+  }
+}
+
 resource "aws_lb" "alb" {
-  name               = "${var.resource_prefix}${local.env}-lb"
+  name               = "${var.project}-${local.env}-lb"
   internal           = false
   load_balancer_type = "application"
   subnets            = module.vpc.public_subnets[*]
 }
 
 resource "aws_lb_listener" "http" {
-  name              = "${var.resource_prefix}${local.env}-http"
-  load_balancer_arn = aws_lb.lb.arn
+  load_balancer_arn = aws_lb.alb.arn
   port              = "80"
   protocol          = "HTTP"
+
+  default_action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "The listerer is up and running, we just need to make sure there are rules ;-)"
+      status_code  = "200"
+    }
+  }
 }
 
-# resource "aws_lb_listener" "https" {
-#   name = "${var.resource_prefix}${local.env}-https"
-#   load_balancer_arn = aws_lb.lb.arn
-#   port              = "443"
-#   protocol          = "HTTPS"
-# }
+data "aws_acm_certificate" "cert" {
+  domain   = "*.${var.domain}"
+  statuses = ["ISSUED"]
+}
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.alb.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-2016-08"
+  certificate_arn   = data.aws_acm_certificate.cert.arn
+
+  default_action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "The listerer is up and running, we just need to make sure there are rules ;-)"
+      status_code  = "200"
+    }
+  }
+}

@@ -74,3 +74,40 @@ resource "aws_iam_role" "builder" {
   assume_role_policy = data.aws_iam_policy_document.builder.json
 }
 
+resource "aws_iam_role_policy" "instance" {
+  name = "${var.project}_instance_policy"
+  role = aws_iam_role.instanace.id
+
+  policy = <<-EOF
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Action": [
+          "*"
+        ],
+        "Effect": "Allow",
+        "Resource": "*"
+      }
+    ]
+  }
+EOF
+}
+
+data "aws_iam_policy_document" "instance_role" {
+  statement {
+    sid     = "1"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+    effect = "Allow"
+  }
+}
+
+resource "aws_iam_role" "instanace" {
+  name               = "${var.project}_instance"
+  assume_role_policy = data.aws_iam_policy_document.instance_role.json
+}

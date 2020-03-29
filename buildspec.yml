@@ -1,0 +1,11 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Build completed on `date`
+  post_build:
+    commands:
+      - echo "Restarting ecs service"
+      - aws ecs update-service --force-new-deployment --service temeker

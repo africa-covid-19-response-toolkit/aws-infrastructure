@@ -1,0 +1,32 @@
+[
+  {
+    "name": "${service_name}",
+    "image": "${image}",
+    "cpu": ${cpu},
+    "memory": ${memory},
+    "essential": true,
+    "portMappings": [
+      {
+        "containerPort": 9000,
+        "hostPort": 9000
+      }
+    ],
+    "secrets": ${secrets},
+    "healthCheck": {
+	    "command": [ "CMD-SHELL", "nc -z localhost 9000 || (echo \"not healthy\" && exit 1)  "
+	    ],
+	    "interval": 5,
+	    "timeout": 2,
+	    "retries": 10,
+	    "startPeriod": 0
+    },
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "${log_group}",
+        "awslogs-region": "${region}",
+        "awslogs-stream-prefix": "${service_name}"
+      }
+    }
+  }
+]
