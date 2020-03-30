@@ -235,7 +235,7 @@ resource "aws_ecs_task_definition" "task" {
   container_definitions = templatefile("task-definition.json", {
     port         = var.port
     region       = "us-east-1"
-    image        = "732548001766.dkr.ecr.us-east-1.amazonaws.com/${var.service_name}:prod"
+    image        =  "${aws_ecr_repository.ecr.repository_url}:prod"
     secrets      = jsonencode(var.secrets)
     envs         = jsonencode(var.envs)
     log_group    = "/${var.project}/${var.service_name}/ecs/task"
