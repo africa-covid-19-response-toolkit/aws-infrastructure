@@ -1,9 +1,24 @@
 version: 0.2
 
 phases:
+  install:
+    runtime-versions:
+      python: 3.7
+    commands:
+      - echo "Installing terraform"
+      - "cd /usr/bin"
+      - "curl -s -qL -o terraform.zip https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_linux_amd64.zip"
+      - "unzip -o terraform.zip"
+      - terraform -version
+
   build:
     commands:
-      - echo Build started on `date`
-      - terraform init terraform/
-      - terraform plan terraform/
-      - echo Build completed on `date`
+      - echo Processing shared resources
+      - cd terraform
+      - terraform init --backend-config="key=cluster" -backend-config="bucket=$STATE_BUCKET_NAME"
+      - terraform apply -var-file default.tfvars
+
+      - echo Creating Response api
+      - cd ecs_service
+      - terraform init --backend-config="key=response-app-api" -backend-config="bucket=$STATE_BUCKET_NAME"
+      - terraform apply -var-file response-app.tfvars
