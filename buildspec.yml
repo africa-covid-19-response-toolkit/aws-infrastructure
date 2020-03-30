@@ -4,8 +4,6 @@ phases:
   build:
     commands:
       - echo Build started on `date`
+      - terraform init terraform/
+      - terraform plan terraform/
       - echo Build completed on `date`
-  post_build:
-    commands:
-      - echo "Restarting ecs service"
-      - aws ecs update-service --force-new-deployment --service temeker

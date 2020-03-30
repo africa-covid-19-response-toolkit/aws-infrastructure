@@ -7,19 +7,12 @@
     "essential": true,
     "portMappings": [
       {
-        "containerPort": 9000,
+        "containerPort": ${port},
         "hostPort": 9000
       }
     ],
     "secrets": ${secrets},
-    "healthCheck": {
-	    "command": [ "CMD-SHELL", "nc -z localhost 9000 || (echo \"not healthy\" && exit 1)  "
-	    ],
-	    "interval": 5,
-	    "timeout": 2,
-	    "retries": 10,
-	    "startPeriod": 0
-    },
+    "environment": ${envs},
     "logConfiguration": {
       "logDriver": "awslogs",
       "options": {

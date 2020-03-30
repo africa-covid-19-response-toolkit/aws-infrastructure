@@ -1,6 +1,16 @@
 provider "aws" {
-  region = "us-east-1"
+  region = var.region
 }
+
+terraform {
+  backend "s3" {
+    bucket = "et-covid-19-terraform-states"
+    key = "cluster"
+    region = "us-east-1"
+  }
+}
+
+variable "region" {}
 
 variable "project" {
   default = "default"
@@ -14,8 +24,6 @@ variable "machine_type" {
 }
 
 variable "domain" {}
-
-
 
 variable "min_count" {
   default = 0
@@ -33,7 +41,10 @@ locals {
   env          = terraform.workspace
   asg_name     = "${var.project}-asg-${local.env}"
   cluster_name = "${local.asg_name}-cluster"
-  azs          = ["us-east-1a", "us-east-1b", "us-east-1c"]
+  azs = [
+    "${var.region}a",
+    "${var.region}b",
+    "${var.region}c"]
 }
 
 module "vpc" {
@@ -48,6 +59,8 @@ module "vpc" {
 
   enable_nat_gateway = false
   enable_vpn_gateway = false
+  enable_dns_support = true
+  enable_dns_hostnames =  true
 
   private_subnet_tags = {
     Private = "true"
@@ -95,6 +108,11 @@ resource "aws_autoscaling_group" "asg" {
     id      = aws_launch_template.lunch_template.id
     version = "$Latest"
   }
+
+  lifecycle {
+    ignore_changes = [
+      desired_capacity]
+  }
 }
 
 resource "aws_ecs_capacity_provider" "cluster_cp" {
@@ -126,7 +144,7 @@ data "aws_route53_zone" "zone" {
 
 resource "aws_route53_record" "hosted_zone" {
   allow_overwrite = true
-  name            = "*.amanu-n.com"
+  name = "*.${var.domain}"
   zone_id         = "${data.aws_route53_zone.zone.zone_id}"
   type            = "A"
 

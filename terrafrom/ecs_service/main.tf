@@ -2,19 +2,44 @@ provider "aws" {
   region = "us-east-1"
 }
 
+terraform {
+  backend "s3" {
+    bucket = "et-covid-19-terraform-states"
+    key    = "ecs"
+    region = "us-east-1"
+  }
+}
+
 variable "project" {
   default = "default"
 }
+
 variable "service_name" {}
 
 variable "github_url" {}
 
+variable "branch" {}
+
+variable "envs" {
+}
+
 variable "secrets" {
-  default = [
-    {
-      name      = "BOT_TOKEN",
-      valueFrom = "bot_token"
-  }]
+}
+
+variable "health_url" {
+  default = "/health"
+}
+
+variable "cpu" {
+  default = 128
+}
+
+variable "memory" {
+  default = 256
+}
+
+variable "port" {
+  default = 9000
 }
 
 variable "public" {
@@ -81,7 +106,7 @@ resource "aws_codebuild_project" "builder" {
     git_clone_depth = 1
   }
 
-  source_version = "master"
+  source_version = var.branch
 
   service_role = data.aws_iam_role.builder.arn
 
@@ -114,7 +139,6 @@ data "aws_lb_listener" "https" {
 resource "aws_lb_listener_rule" "http_route" {
   count        = var.public == true ? 0 : 1
   listener_arn = data.aws_lb_listener.http.arn
-  priority     = 100
 
   action {
     type             = "forward"
@@ -131,7 +155,6 @@ resource "aws_lb_listener_rule" "http_route" {
 
 resource "aws_lb_listener_rule" "https_route" {
   listener_arn = data.aws_lb_listener.https.arn
-  priority     = 200
 
   action {
     type             = "forward"
@@ -157,14 +180,14 @@ data "aws_vpc" "vpc" {
 
 resource "aws_lb_target_group" "tg" {
   name        = "${var.project}-${var.service_name}"
-  port        = 9000
+  port        = var.port
   target_type = "instance"
   protocol    = "HTTP"
   vpc_id      = data.aws_vpc.vpc.id
 
   health_check {
     interval = 30
-    path = "/health"
+    path     = var.health_url
   }
 }
 
@@ -203,26 +226,28 @@ resource "aws_ecs_service" "service" {
   load_balancer {
     target_group_arn = aws_lb_target_group.tg.arn
     container_name   = var.service_name
-    container_port   = 9000
+    container_port   = var.port
   }
 }
 
 resource "aws_ecs_task_definition" "task" {
   family = var.service_name
   container_definitions = templatefile("task-definition.json", {
+    port         = var.port
     region       = "us-east-1"
     image        = "732548001766.dkr.ecr.us-east-1.amazonaws.com/${var.service_name}:prod"
     secrets      = jsonencode(var.secrets)
+    envs         = jsonencode(var.envs)
     log_group    = "/${var.project}/${var.service_name}/ecs/task"
     service_name = var.service_name
-    memory       = 512
-    cpu          = 100
+    memory       = var.memory
+    cpu          = var.cpu
   })
-  memory             = 512
-  cpu                = 256
-  task_role_arn      = data.aws_iam_role.ecs_task.arn
-  execution_role_arn = data.aws_iam_role.ecs_task.arn
-  network_mode       = "bridge"
+  memory                   = var.memory
+  cpu                      = var.cpu
+  task_role_arn            = data.aws_iam_role.ecs_task.arn
+  execution_role_arn       = data.aws_iam_role.ecs_task.arn
+  network_mode             = "bridge"
   requires_compatibilities = ["EC2"]
 
   # volume {
