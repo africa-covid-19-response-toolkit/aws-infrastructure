@@ -1,0 +1,66 @@
+version: 0.2`
+
+env:
+  variables:
+      GIT_URL: "https://github.com/Ethiopia-COVID19/CovidCallReporterApi.git"
+      REPOSITORY_URI: ''
+      IMAGE_TAG : "built"
+  #parameter-store:
+     # key: "value"
+     # key: "value"
+  #secrets-manager:
+     # key: secret-id:json-key:version-stage:version-id
+     # key: secret-id:json-key:version-stage:version-id
+  #exported-variables:
+     # - variable
+     # - variable
+  #git-credential-helper: yes
+
+phases:
+    #commands:
+      # - command
+      # - command
+  pre_build:
+    commands:
+       - git clone https://github.com/Ethiopia-COVID19/CovidCallReporterApi.git response-app
+       - cd response-app
+       - echo Logging in to Amazon ECR....
+       - aws --version
+     # login to Elastic container registry
+       - eval $(aws ecr get-login --region us-east-1 --no-include-email | sed 's|https://||')
+  build:
+    commands:
+        - echo Build started on `date`
+        - echo installing composer..
+        - composer install
+        - echo creating .env file..
+        - cp .env.example .env
+        - echo generating app key
+        - php artisan key:generate
+        - echo Building the Docker image...
+        - docker build -t $REPOSITORY_URI:latest .
+        - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      - docker image ls -a
+      - docker push $REPOSITORY_URI:$IMAGE_TAG 
+#reports:
+  #report-name-or-arn:
+    #files:
+      # - location
+      # - location
+    #base-directory: location
+    #discard-paths: yes
+    #file-format: JunitXml | CucumberJson
+#artifacts:
+  #files:
+    # - location
+    # - location
+  #name: $(date +%Y-%m-%d)
+  #discard-paths: yes
+  #base-directory: location
+#cache:
+  #paths:
+    # - paths
