@@ -1,0 +1,263 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Template that automatically builds and deploys frontend projects
+
+Parameters:
+  ServiceName:
+    Type: String
+    Description: "Name of the repo to build and deploy"
+  DevBucketName:
+    Type: String
+    Description: "Dev bucket name"
+    Default: "dev-artifact-bucket"
+  ProdBucketName:
+    Type: String
+    Description: "Dev bucket name"
+    Default: "prd-artifact-bucket"
+  ThirdPartyRepositoryName:
+    Description: "The name of the repository on github/bitbucket"
+    Type: String
+  BranchName:
+    Description: branch name
+    Type: String
+    Default: master
+
+Resources:
+
+#  AppPipelineWebhook:
+#    Type: 'AWS::CodePipeline::Webhook'
+#    Properties:
+#      Authentication: GITHUB_HMAC
+#      AuthenticationConfiguration:
+#        SecretToken: '{{resolve:secretsmanager:GithubCreds:SecretString:token}}'
+#      Filters:
+#        - JsonPath: $.ref
+#          MatchEquals: 'refs/heads/{Branch}'
+#      TargetPipeline: !Ref CFPipeline
+#      TargetAction: SourceAction
+#      Name: AppPipelineWebhook
+#      TargetPipelineVersion: !GetAtt
+#        - CFPipeline
+#        - Version
+#      RegisterWithThirdParty: true
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${ServiceName}-build-policy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - logs:*
+              - Effect: Allow
+                Action:
+                  - s3:*
+                Resource:
+                  - !Sub "arn:aws:s3:::${DevBucketName}/*"
+                  - !Sub "arn:aws:s3:::${ProdBucketName}/*"
+
+  CFBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${ServiceName}'
+      ServiceRole: !Ref CodeBuildRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        EnvironmentVariables:
+          -
+            Value: 0
+            Name: FORCE_COLOR
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |
+          version: 0.2
+
+          #env:
+            #variables:
+               # key: "value"
+               # key: "value"
+            #parameter-store:
+               # key: "value"
+               # key: "value"
+            #secrets-manager:
+               # key: secret-id:json-key:version-stage:version-id
+               # key: secret-id:json-key:version-stage:version-id
+            #exported-variables:
+               # - variable
+               # - variable
+            #git-credential-helper: yes
+
+          phases:
+            install:
+              #If you use the Ubuntu standard image 2.0 or later, you must specify runtime-versions.
+              #If you specify runtime-versions and use an image other than Ubuntu standard image 2.0, the build fails.
+              #runtime-versions:
+                # name: version
+                # name: version
+              commands:
+                 - yum update -y
+                 - yum install -y npm
+            pre_build:
+              commands:
+                 - npm i
+                # - command
+            build:
+              commands:
+                 - npm run build
+                # - command
+          #reports:
+            #report-name-or-arn:
+              #files:
+                # - location
+                # - location
+              #base-directory: location
+              #discard-paths: yes
+              #file-format: JunitXml | CucumberJson
+          artifacts:
+            files:
+               - '**/*'
+              # - location
+            #name: $(date +%Y-%m-%d)
+            #discard-paths: yes
+            base-directory: dist
+          #cache:
+            #paths:
+              # - paths
+      TimeoutInMinutes: 10
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${ServiceName}-pipeline-policy"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource:
+                  - !Sub "arn:aws:s3:::${DevBucketName}/*"
+                  - !Sub "arn:aws:s3:::${ProdBucketName}/*"
+                Effect: Allow
+                Action:
+                  - s3:*
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - codebuild:*
+                  - codecommit:*
+                  - codedeploy:*
+
+  CFPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Name: !Sub '${ServiceName}'
+      ArtifactStore:
+        Type: S3
+        Location: !Ref DevBucketName
+      Stages:
+        -
+          Name: Source
+          Actions:
+              - Name: SourceAction
+                ActionTypeId:
+                  Category: Source
+                  Owner: ThirdParty
+                  Version: 1
+                  Provider: GitHub
+                OutputArtifacts:
+                  - Name: SourceInput
+                Configuration:
+                  Owner: '{{resolve:secretsmanager:GithubCreds:SecretString:owner}}'
+                  Repo: !Ref ThirdPartyRepositoryName
+                  Branch: !Ref BranchName
+                  OAuthToken: '{{resolve:secretsmanager:GithubCreds:SecretString:token}}'
+                  PollForSourceChanges: false
+        -
+          Name: Build
+          Actions:
+            -
+              Name: !Join [ "-", [ Build, !Ref ServiceName ]]
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              InputArtifacts:
+                -
+                  Name: SourceInput
+              OutputArtifacts:
+                -
+                  Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref 'CFBuild'
+        -
+          Name: DeployDev
+          Actions:
+            -
+              Name: !Join [ "-", [ Deploy, !Ref ServiceName ]]
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: S3
+              InputArtifacts:
+                -
+                  Name: BuildOutput
+              Configuration:
+                Extract: true
+                BucketName: !Ref DevBucketName
+                ObjectKey: !Ref ServiceName
+                CacheControl: "s-max-age=31536000,max-age=31536000,stale-while-revalidate=86400,stale-if-error=86400"
+        -
+          Name: ApprovalDev
+          Actions:
+            -
+              Name: !Join [ "-", [ Approve, !Ref ServiceName, Dev ]]
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: '1'
+                Provider: Manual
+              Configuration:
+                CustomData: Approve move to production
+        -
+          Name: DeployProd
+          Actions:
+            -
+              Name: !Join [ "-", [ Deploy, !Ref ServiceName, Prod ]]
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: '1'
+                Provider: S3
+              InputArtifacts:
+                -
+                  Name: BuildOutput
+              Configuration:
+                Extract: true
+                BucketName: !Ref ProdBucketName
+                ObjectKey: !Ref ServiceName
+                CacheControl: "s-max-age=31536000,max-age=31536000,stale-while-revalidate=86400,stale-if-error=86400"
