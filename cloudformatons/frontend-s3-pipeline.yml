@@ -5,6 +5,18 @@ Parameters:
   ServiceName:
     Type: String
     Description: "Name of the repo to build and deploy"
+  ThirdPartyOrgName:
+    Description: The org/project for gitbub/bitbucket
+    Type: String
+  ThirdPartyRepositoryName:
+    Description: "The name of the repository on github/bitbucket"
+    Type: String
+  ThirdPartyVCSProvider:
+    Description: "The 3rd party version control system provider; can only be github/bitbucket"
+    Type: String
+    AllowedValues:
+      - GitHub
+      - BitBucket
   DevBucketName:
     Type: String
     Description: "Dev bucket name"
@@ -13,32 +25,37 @@ Parameters:
     Type: String
     Description: "Dev bucket name"
     Default: "prd-artifact-bucket"
-  ThirdPartyRepositoryName:
-    Description: "The name of the repository on github/bitbucket"
-    Type: String
   BranchName:
     Description: branch name
     Type: String
     Default: master
 
+Mappings:
+  SecretMap:
+    GitHub:
+      Secret: '{{resolve:secretsmanager:GithubCreds:SecretString:token}}'
+    BitBucket:
+      Secret: '{{resolve:secretsmanager:BitBucketCreds:SecretString:token}}'
+
+
 Resources:
 
-#  AppPipelineWebhook:
-#    Type: 'AWS::CodePipeline::Webhook'
-#    Properties:
-#      Authentication: GITHUB_HMAC
-#      AuthenticationConfiguration:
-#        SecretToken: '{{resolve:secretsmanager:GithubCreds:SecretString:token}}'
-#      Filters:
-#        - JsonPath: $.ref
-#          MatchEquals: 'refs/heads/{Branch}'
-#      TargetPipeline: !Ref CFPipeline
-#      TargetAction: SourceAction
-#      Name: AppPipelineWebhook
-#      TargetPipelineVersion: !GetAtt
-#        - CFPipeline
-#        - Version
-#      RegisterWithThirdParty: true
+  AppPipelineWebhook:
+    Type: 'AWS::CodePipeline::Webhook'
+    Properties:
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: !FindInMap [SecretMap, !Ref ThirdPartyVCSProvider, Secret]
+      Filters:
+        - JsonPath: $.ref
+          MatchEquals: 'refs/heads/{Branch}'
+      TargetPipeline: !Ref CFPipeline
+      TargetAction: SourceAction
+      Name: AppPipelineWebhook
+      TargetPipelineVersion: !GetAtt
+        - CFPipeline
+        - Version
+      RegisterWithThirdParty: true
 
   CodeBuildRole:
     Type: AWS::IAM::Role
@@ -186,14 +203,14 @@ Resources:
                   Category: Source
                   Owner: ThirdParty
                   Version: 1
-                  Provider: GitHub
+                  Provider: !Ref ThirdPartyVCSProvider
                 OutputArtifacts:
                   - Name: SourceInput
                 Configuration:
-                  Owner: '{{resolve:secretsmanager:GithubCreds:SecretString:owner}}'
+                  Owner: !Ref ThirdPartyOrgName
                   Repo: !Ref ThirdPartyRepositoryName
                   Branch: !Ref BranchName
-                  OAuthToken: '{{resolve:secretsmanager:GithubCreds:SecretString:token}}'
+                  OAuthToken: !FindInMap [SecretMap, !Ref ThirdPartyVCSProvider, Secret]
                   PollForSourceChanges: false
         -
           Name: Build
