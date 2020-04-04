@@ -6,7 +6,6 @@ terraform {
   backend "s3" {
     bucket = "et-covid-19-terraform-states"
     key = "cluster"
-    region = "us-east-1"
   }
 }
 

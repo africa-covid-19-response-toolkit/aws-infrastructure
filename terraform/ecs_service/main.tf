@@ -1,5 +1,5 @@
 provider "aws" {
-  region = "us-east-1"
+  region = var.region
 }
 
 terraform {
@@ -14,6 +14,9 @@ variable "project" {
   default = "default"
 }
 
+variable "region" {
+  default = "us-east-1"
+}
 variable "service_name" {}
 
 variable "github_url" {}

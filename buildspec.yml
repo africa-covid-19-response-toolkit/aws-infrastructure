@@ -14,16 +14,16 @@ phases:
   build:
     commands:
       - echo Processing shared resources
-      - cd $CODEBUILD_SRC_DIR/terraform && terraform init --backend-config="key=cluster" -backend-config="bucket=$STATE_BUCKET_NAME"
-      - cd $CODEBUILD_SRC_DIR/terraform && terraform plan -out plan -var-file default.tfvars
+      - cd $CODEBUILD_SRC_DIR/terraform && terraform init --backend-config="key=cluster"  --backend-config="region=$AWS_REGION" -backend-config="bucket=$STATE_BUCKET_NAME"
+      - cd $CODEBUILD_SRC_DIR/terraform && terraform plan -out plan  -var region=$AWS_REGION -var-file default.tfvars
       - cd $CODEBUILD_SRC_DIR/terraform && terraform apply plan
 
       - echo Creating Response api
-      - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform init --backend-config="key=response-app-api" -backend-config="bucket=$STATE_BUCKET_NAME"
-      - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform plan -out plan -var-file response-app.tfvars
+      - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform init --backend-config="region=$AWS_REGION" --backend-config="key=response-app-api" -backend-config="bucket=$STATE_BUCKET_NAME"
+      - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform plan -out plan -var region=$AWS_REGION -var-file response-app.tfvars
       - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform apply plan
 
       - echo Creating Response UI
       - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform init --backend-config="region=$AWS_REGION" --backend-config="key=response-ui" -backend-config="bucket=$STATE_BUCKET_NAME"
-      - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform plan -out plan -var region=$AWS_REGION -var-file response-app.tfvars
+      - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform plan -out plan -var region=$AWS_REGION -var-file response-ui.tfvars
       - cd $CODEBUILD_SRC_DIR/terraform/ecs_service && terraform apply plan
