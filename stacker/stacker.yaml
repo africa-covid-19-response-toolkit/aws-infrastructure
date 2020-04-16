@@ -1,0 +1,33 @@
+# this is an minimal `stack config` file.
+# http://stacker.readthedocs.io/en/latest/config.html
+# 
+# The stacker namespace, provided by the environment file.
+# http://stacker.readthedocs.io/en/latest/config.html#namespace-delimiter
+namespace: ${namespace}
+
+# The bucket where stacker stores generated CloudFormation templates.
+# http://stacker.readthedocs.io/en/latest/config.html#s3-bucket
+stacker_bucket: covid19-ethrt
+
+# This sets the syspath to include the local path, which allows access to the
+# blueprints in the blueprints directory.
+# http://stacker.readthedocs.io/en/latest/config.html#module-paths
+sys_path: .
+
+# The stacks key accepts a list of stack declarations.
+# http://stacker.readthedocs.io/en/latest/config.html#stacks
+stacks:
+
+  # This is an example minimal stack.
+  # The 'name' and 'class_path' keys are required.
+  # The 'name' value must be unique.
+  # The 'class_path' points at a Python stacker "blueprint" class.
+  - name: touch-nothing
+    class_path: blueprints.touch.Touch
+
+    # in this case, if you look in the "blueprints" directory at the file "touch.py"
+    # you will see a Python class called "Touch".
+
+    # when we execute stacker with this `stack config`, it will automatically run the
+    # blueprint code to produce a CloudFormation JSON template, upload it to s3, and
+    # trigger a CloudFormation create/update.

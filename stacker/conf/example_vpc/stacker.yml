@@ -1,0 +1,69 @@
+namespace: ${namespace}
+
+vpc_variables: &vpc_variables
+  VpcId: ${output vpc::VpcId}
+  VpcDefaultSecurityGroup: ${output vpc::DefaultSecurityGroup}
+
+public_network_variables: &public_network_variables
+  << : *vpc_variables
+  InternetGatewayId: ${output vpc::InternetGatewayId}
+  CreateNatGateway: true
+
+private_network_variables: &private_network_variables
+  << : *vpc_variables
+
+
+stacks:
+  # VPC & Network setup
+  - name: vpc
+    class_path: stacker_blueprints.vpc.VPC2
+    variables:
+      VPC:
+        # VPC config
+        VPC:
+          CidrBlock: 10.128.0.0/16
+          EnableDnsHostnames: true
+      InternalZone:
+        # Creates an Internal Hosted zone called .internal
+        InternalZone:
+          Name: internal.
+          HostedZoneConfig:
+            Comment: ${environment} internal zone
+
+  # Subnets for ${availability_zone_1} - set the availability zone in the
+  # environment file.
+  - name: publicNetworkA
+    class_path: stacker_blueprints.network.Network
+    variables:
+      << : *public_network_variables
+      AvailabilityZone: ${availability_zone_1}
+      # 512 available IPs in this network
+      CidrBlock: 10.128.0.0/23
+  - name: privateNetworkA
+    class_path: stacker_blueprints.network.Network
+    variables:
+      << : *private_network_variables
+      # Use the NatGateway from the public network as the default route
+      NatGatewayId: ${output publicNetworkA::NatGatewayId}
+      AvailabilityZone: ${availability_zone_1}
+      # 2048 available IPs in this network
+      CidrBlock: 10.128.16.0/21
+
+  # Subnets for ${availability_zone_2} - set the availability zone in the
+  # environment file.
+  - name: publicNetworkB
+    class_path: stacker_blueprints.network.Network
+    variables:
+      << : *public_network_variables
+      AvailabilityZone: ${availability_zone_2}
+      # 512 available IPs in this network
+      CidrBlock: 10.128.2.0/23
+  - name: privateNetworkB
+    class_path: stacker_blueprints.network.Network
+    variables:
+      << : *private_network_variables
+      # Use the NatGateway from the public network as the default route
+      NatGatewayId: ${output publicNetworkB::NatGatewayId}
+      AvailabilityZone: ${availability_zone_2}
+      # 2048 available IPs in this network
+      CidrBlock: 10.128.24.0/21

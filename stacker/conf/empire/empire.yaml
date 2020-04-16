@@ -1,0 +1,195 @@
+# This is an example stacker config for bringing up a "Production Ready"
+# version of Empire (https://github.com/remind101/empire)
+# It brings up 5 stacks:
+# - vpc:
+#   Basic vpc definitions, nat hosts, etc
+# - bastion:
+#   bastion hosts with ssh limited to a single CIDR range (your office, for
+#   example) that can ssh to any host insde the VPC
+# - empireDB:
+#   A postgres RDS database that will host your empire database.
+# - empireMinion:
+#   An autoscaling group that will deploy have the ECS Agent deployed to each
+#   instance and configured to use the ECS Cluster that Empire will deploy
+#   tasks into.
+# - empireController:
+#   An autoscaling group that will launch the Empire API. An ELB will be built
+#   in front of these hosts, using an SSL certificate if provided (recommended)
+#   and only allowing access from the same trusted CIDR range defined in
+#   the bastion. It will also create a DNS CNAME in a given External Domain
+#   for the empire API ELB (https://empire.<given domain>)
+#
+# Each stack builds whatever security groups, IAM profiles, roles, and
+# policies that they might need.
+
+# Hooks require a path.
+# If the build should stop when a hook fails, set required to true.
+# pre_build happens before the build
+# post_build happens after the build
+pre_build:
+  - path: stacker.hooks.route53.create_domain
+    required: true
+    # Additional args can be passed as a dict of key/value pairs in kwargs
+    args:
+      domain: ${external_domain}
+# post_build:
+
+mappings:
+  AmiMap:
+    us-east-1:
+      NAT: ami-c02b04a8
+      ubuntu1404: ami-c135f3aa
+      empire: ami-1a15db77 # https://circleci.com/gh/remind101/empire_ami/89
+    us-west-1:
+      NAT: ami-67a54423
+      ubuntu1404: ami-bf3dccfb
+      empire: ami-e90f4889 # https://circleci.com/gh/remind101/empire_ami/89
+    us-west-2:
+      NAT: ami-2dae821d
+      ubuntu1404: ami-f15b5dc1
+      empire: ami-050dcb65 # https://circleci.com/gh/remind101/empire_ami/89
+    eu-west-1:
+      NAT: ami-ef76e898
+      ubuntu1404: ami-47a23a30
+      empire: ami-b6c258c5 # https://circleci.com/gh/remind101/empire_ami/89
+
+# Many stacks need these settings, or a subset of them, from the VPC -
+# this makes it easy to pass them around. Stacker will drop unused Parameters
+# that are passed to a blueprint.
+vpc_variables: &vpc_variables
+  VpcId: ${output vpc::VpcId} # default output lookup variable refers to <stack>::<Output>
+  DefaultSG: ${output vpc::DefaultSG}
+  PublicSubnets: ${output vpc::PublicSubnets}
+  PrivateSubnets: ${output vpc::PrivateSubnets}
+  AvailabilityZones: ${output vpc::AvailabilityZones}
+
+# These are required for the minion & controller, used to access private
+# registries.
+docker_params: &docker_params
+  DockerRegistry: ${docker_registry}
+  DockerRegistryUser: ${docker_registry_user}
+  DockerRegistryPassword: ${docker_registry_password}
+  DockerRegistryEmail: ${docker_registry_email}
+
+stacks:
+  - name: vpc
+    class_path: stacker_blueprints.vpc.VPC
+    variables:
+      # AZCount is the # of AvailabilityZones to attempt to build in. You
+      # should build in as many as you can afford in order to provide for
+      # better fault tolerance. Note: Since this is all done in a VPC, you
+      # need to find out how many AZs can handle VPC subnets for the
+      # region you are building in. As of this writing, here are the max
+      # allowed AZCount's for each zone:
+      #     us-east-1: 4, us-west-1: 2, us-west-2: 3, eu-west-1: 3
+      # Note: The minimum allowed AZCount is 2.
+      AZCount: ${azcount}
+      # Enough subnets for 4 AZs
+      CidrBlock: 10.128.0.0/16
+      PublicSubnets:
+        - 10.128.0.0/24
+        - 10.128.1.0/24
+        - 10.128.2.0/24
+        - 10.128.3.0/24
+      PrivateSubnets: 
+        - 10.128.8.0/22
+        - 10.128.12.0/22
+        - 10.128.16.0/22
+        - 10.128.20.0/22
+      BaseDomain: ${external_domain}
+      InternalDomain: empire
+  - name: bastion
+    class_path: stacker_blueprints.bastion.Bastion
+    variables:
+      # Extends the variables dict with the contents of the vpc_variables
+      # anchor. Basically we're including all VPC Outputs in the variables
+      # of the bastion stack. Note: Stacker figures out, automatically, which
+      # variables the stack actually needs and only submits those to each
+      # stack. For example, most stacks are in the PrivateSubnets, but not
+      # the PublicSubnets, but stacker deals with it for you.
+      << : *vpc_variables
+      InstanceType: ${bastion_instance_type}
+      OfficeNetwork: ${trusted_network_cidr}
+      MinSize: 2
+      MaxSize: 2
+      SshKeyName: ${ssh_key_name}
+      ImageName: ubuntu1404
+  - name: empireDB
+    class_path: stacker_blueprints.postgres.PostgresRDS
+    # this stack is locked, which means it will not update unless you pass the
+    # stack name "empireDB" on the command line with --force
+    locked: true
+    variables:
+      << : *vpc_variables
+      InstanceType: ${empiredb_instance_type}
+      AllocatedStorage: ${empiredb_disk_size}
+      MasterUser: ${empiredb_user}
+      MasterUserPassword: ${empiredb_password}
+      DBName: empire
+      # Creates the InternalHostname on the InternalZone, ie:
+      # empire-db.empire
+      InternalZoneId: ${output vpc::InternalZoneId}
+      InternalZoneName: ${output vpc::InternalZoneName}
+      InternalHostname: empire-db
+  - name: empireMinion
+    class_path: stacker_blueprints.empire.minion.EmpireMinion
+    variables:
+      << : *vpc_variables
+      << : *docker_params
+      InstanceType: ${empire_minion_instance_type}
+      MinHosts: ${empire_minion_min_instance_count}
+      MaxHosts: ${empire_minion_max_instance_count}
+      SshKeyName: ${ssh_key_name}
+      ImageName: empire
+      DisableStreamingLogs: ${empire_disable_streaming_logs}
+  - name: empireController
+    class_path: stacker_blueprints.empire.controller.EmpireController
+    variables:
+      << : *vpc_variables
+      << : *docker_params
+      InstanceType: ${empire_controller_instance_type}
+      MinHosts: ${empire_controller_min_instance_count}
+      MaxHosts: ${empire_controller_max_instance_count}
+      SshKeyName: ${ssh_key_name}
+      ImageName: empire
+      DatabaseSecurityGroup: ${output empireDB::SecurityGroup}
+  - name: empireDaemon
+    class_path: stacker_blueprints.empire.daemon.EmpireDaemon
+    variables:
+      << : *vpc_variables
+      << : *docker_params
+      DesiredCount: 1
+      ExternalDomain: ${external_domain}
+      TrustedNetwork: ${trusted_network_cidr}
+      ELBCertName: ${empire_controller_cert_name}
+      ELBCertType: ${empire_controller_cert_type}
+      DatabaseHost: ${output empireDB::DBCname}
+      DatabaseUser: ${empiredb_user}
+      DatabasePassword: ${empiredb_password}
+      GithubClientId: ${empire_daemon_github_client_id}
+      GithubClientSecret: ${empire_daemon_github_client_secret}
+      GithubOrganization: ${empire_daemon_github_organization}
+      DockerImage: ${empire_daemon_docker_image}
+      Environment: ${empire_environment}
+      InstanceRole: ${output empireController::IAMRole}
+      InstanceSecurityGroup: ${output empireController::SecurityGroup}
+      # Used for github deploy webhooks
+      GitHubWebhooksSecret: ${empire_daemon_github_webhooks_secret}
+      GitHubDeploymentsEnvironment: ${empire_daemon_github_deployments_environment}
+      TokenSecret: ${empire_daemon_token_secret}
+      LogsStreamer: ${empire_daemon_log_streamer}
+      InternalZoneId: ${output vpc::InternalZoneId}
+      PublicAppELBSG: ${output empireMinion::PublicAppELBSG}
+      PrivateAppELBSG: ${output empireMinion::PrivateAppELBSG}
+      MinionCluster: ${output empireMinion::ECSCluster}
+      ControllerCluster: ${output empireController::ECSCluster}
+      RunLogsBackend: ${empire_daemon_run_logs_backend}
+      RunLogsCloudwatchGroup: !!str
+      EventsBackend: ${empire_daemon_events_backend}
+      EventsSNSTopicName: ${empire_daemon_events_sns_topic_name}
+      TaskMemory: 256
+      TaskCPU: 1024
+      AwsDebug: ${empire_daemon_aws_debug}
+      ServiceMaximumPercent: 200
+      ServiceMinimumHealthyPercent: 50
+      RequireCommitMessages: ${empire_daemon_require_commit_messages}

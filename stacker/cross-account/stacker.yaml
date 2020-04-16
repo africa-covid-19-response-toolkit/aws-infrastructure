@@ -1,0 +1,19 @@
+---
+namespace: ''
+
+# We'll set this to an empty string until we've provisioned the
+# "stacker-bucket" stack below.
+stacker_bucket: 'stacker-bucket-stackerbucket-5vc331wsekn9'
+
+stacks:
+  # This stack will provision an S3 bucket for stacker to use to upload
+  # templates. This will also configure the bucket with a bucket policy
+  # allowing CloudFormation in other accounts to fetch templates from it.
+  - name: stacker-bucket
+    # We're going to "target" this stack in our "master" account.
+    profile: tenac
+    enable: false 
+    template_path: templates/stacker-bucket.yaml
+    variables:
+      # Change these to the correct AWS account IDs, must be comma seperated list
+      Roles: arn:aws:iam::070096167435:role/Stacker
