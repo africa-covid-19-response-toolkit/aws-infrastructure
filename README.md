@@ -1,3 +1,7 @@
+<div align="center">
+  <img alt="ACRT Infrastructure Templates" src="https://github.com/Ethiopia-COVID19/aws-infrastructure/blob/adding-image-readme/acrt_19_aws_infrastructure.png" width="650px">
+</div>
+
 # AWS Infrastructure Templates for Africa COVID-19 Response Toolkit
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
