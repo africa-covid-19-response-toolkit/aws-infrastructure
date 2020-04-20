@@ -1,7 +1,3 @@
-# AWS Infrastructure
+# AWS Infrastructure Templates for Africa COVID-1p Response Toolkit
 
-Task 1:  
-
-Task 2: 
- 
-Task 3: 
+AWS CloudFormation and Terraform templates to bootstrap AWS resources for Africa COVID-19 Response Toolkit projects.
