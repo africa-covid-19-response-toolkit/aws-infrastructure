@@ -1,6 +1,6 @@
 # AWS Infrastructure Templates for Africa COVID-19 Response Toolkit
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 AWS CloudFormation and Terraform templates to bootstrap AWS resources for Africa COVID-19 Response Toolkit projects.
@@ -15,6 +15,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <table>
   <tr>
     <td align="center"><a href="https://github.com/Mexboy"><img src="https://avatars0.githubusercontent.com/u/2456213?v=4" width="100px;" alt=""/><br /><sub><b>Mexboy</b></sub></a><br /><a href="https://github.com/Ethiopia-COVID19/aws-infrastructure/commits?author=Mexboy" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/nabebe"><img src="https://avatars2.githubusercontent.com/u/17017927?v=4" width="100px;" alt=""/><br /><sub><b>Nati Abebe</b></sub></a><br /><a href="https://github.com/Ethiopia-COVID19/aws-infrastructure/commits?author=nabebe" title="Code">💻</a></td>
   </tr>
 </table>
 
