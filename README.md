@@ -18,7 +18,8 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- markdownlint-disable -->
 <table>
   <tr>
-    <td align="center"><a href="https://github.com/nabebe"><img src="https://avatars2.githubusercontent.com/u/17017927?v=4" width="100px;" alt=""/><br /><sub><b>Nati Abebe</b></sub></a><br /><a href="https://github.com/Ethiopia-COVID19/aws-infrastructure/commits?author=nabebe" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/nabebe"><img src="https://avatars2.githubusercontent.com/u/17017927?v=4" width="100px;" alt=""/><br /><sub><b>Nati Abebe</b></sub></a><br /><a href="https://github.com/africa-covid-19-response-toolkit/aws-infrastructure/commits?author=nabebe" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/amexboy"><img src="https://avatars1.githubusercontent.com/u/7335342?v=4" width="100px;" alt=""/><br /><sub><b>Amanuel Mekonnen</b></sub></a><br /><a href="https://github.com/africa-covid-19-response-toolkit/aws-infrastructure/commits?author=amexboy" title="Code">💻</a></td>
   </tr>
 </table>
 
